@@ -1,0 +1,15 @@
+# Draw a line connecting list of points 
+https://developers.google.com/maps/documentation/javascript/shapes#maps_polyline_simple-javascript
+
+# Draw many racts
+https://stackoverflow.com/questions/13381497/draw-rectangles-in-area-on-google-maps/13465153
+
+# geometry library used be 1.
+https://developers.google.com/maps/documentation/javascript/geometry
+
+# rotate a rectangle. 
+https://jsfiddle.net/vgrem/70sL1kg6/
+
+# delete edge 
+https://developers.google.com/maps/documentation/javascript/examples/delete-vertex-menu
+
