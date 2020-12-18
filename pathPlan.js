@@ -6,25 +6,98 @@ function generatePath() {
     boundingPolygon.getLongestEdge().print('longest edge of bounding polygon')
     // const height = prompt(`Enter Drone Flight height:`)
     // console.log(height)
-    let longestEdge = boundingPolygon.getLongestEdge()
-    //longestEdge.draw()
-
-    let sweep = boundingPolygon.getSweepLine()
-    sweep.print('sweep')
-    sweep.draw()
-    
-    let intervals = sweep.getIntervalPoints(10)    
-    
-    const raySlope = Math.tan((sweep.getAngle()+90)*Math.PI/180)
-    console.log(`ray angle is : ${Math.atan(raySlope)*180/Math.PI}`)
-    let rays = intervals.map(x=>new Ray(x, raySlope))
-    console.log(rays)
-    let rayLines = rays.map(x=>boundingPolygon.getRayIntersectLine(x))
-    console.log(rayLines)
-    rayLines.forEach(x=>x.draw())
+    let drone = new Drone(boundingPolygon, new Camera(78.8,4/3), 60)
+    drone.pathPlan()
 }
 
+function degreeToRadian(x){
+    return x * Math.PI / 180
+}  
+function radianToDegree(x){
+    return x * 180 / Math.PI 
+}  
+class Camera{
+    constructor(angleOfView, aspectRatio){
+        this.angleOfView = angleOfView
+        this.aspectRatio = aspectRatio
+    }
+    getFootPrintWidth(height){
+        return 2*height*Math.tan(degreeToRadian(this.angleOfView/2))
+    }
+    getFootPrintHeight(height){
+        return this.getFootPrintWidth(height)/this.aspectRatio
+    }
+}
+class Drone{
+    constructor(area, camera, height){
+        this.area = area
+        this.camera = camera
+        this.height = height
+    }
+    pathPlan(){
+        let sweep = this.area.getSweepLine()  
+        sweep.draw()  
+        console.log(sweep.getAngle())    
+        let sweepLength = sweep.getLengthInMeters()
+        let cameraWidth = this.camera.getFootPrintWidth(this.height)
+        let cameraHeight = this.camera.getFootPrintHeight(this.height)
+        let stripeCount = Math.ceil(sweepLength /cameraWidth)
+        if(stripeCount % 2 != 0){
+            stripeCount++
+        }
+        const stripeGap = (sweepLength - cameraWidth )/ (stripeCount - 1)
+        let intervals = sweep.getIntervalPoints(stripeCount, metersToLengthInPoints(cameraWidth/2), metersToLengthInPoints(stripeGap)) 
 
+        const raySlope = Math.tan(degreeToRadian(sweep.getAngle()+90))
+        let rays = intervals.map(x=>new Ray(x, raySlope))
+        //rays.forEach(x=>x.draw())
+        let plowLines = rays.map(x=>this.area.getRayIntersectLine(x))
+        //plowLines.forEach(x=>x.draw())       
+        let picturePoints = plowLines.map( x => {
+            const plowLength = x.getLengthInMeters()
+            const plowCount = Math.ceil(plowLength/cameraHeight)
+            const plowGap = (plowLength - cameraHeight) / (plowCount - 1)
+            return x.getIntervalPoints(plowCount,metersToLengthInPoints(cameraHeight/2), metersToLengthInPoints(plowGap))
+        })
+        let joinPicturePoints = []
+        picturePoints.forEach((element,i) => {
+            if(i%2 != 0)
+                element.reverse()
+            joinPicturePoints = joinPicturePoints.concat(element)
+        });   
+        console.log('picturePoints '+ joinPicturePoints.length)     
+        let path = new Path(joinPicturePoints)
+        path.draw()
+        //new Rectangle(path.points[0], metersToLengthInPoints(cameraWidth), metersToLengthInPoints(cameraHeight), sweep.getAngle()).draw()
+        path.points.forEach(x=> new Rectangle(x, metersToLengthInPoints(cameraWidth), metersToLengthInPoints(cameraHeight), sweep.getAngle()).draw())
+    }
+}
+
+class Path{
+    constructor(points){
+        this.points = points
+    }
+    draw(myColor='#00FF00'){
+        const flightPath = new google.maps.Polyline({
+            path: this.getLatLng(),
+            geodesic: true,
+            strokeColor: myColor,
+            strokeOpacity: 1.0,
+            strokeWeight: 2,
+        });
+        flightPath.setMap(map);
+      
+    }
+    getLatLng(){
+        let latLngs = []
+        for (var i =0; i<this.points.length;i++){
+            const xy = this.points[i]
+            latLngs.push(map.getProjection().fromPointToLatLng(xy))
+        }
+        return latLngs
+    }
+
+}
 class Point{
     constructor(x,y){
         this.x = x
@@ -50,7 +123,7 @@ class Point{
             }
             else 
                 return false
-        }
+            }
 
         
     }
@@ -62,8 +135,8 @@ class Ray{
         this.slope = slope
     }
     doesIntersect(line){
-        let inPt = this.getIntersectPoint(line)
-        return Boolean(inPt) && inPt.isOn(line)
+        let inPt = this.getIntersectPoint(line,true)
+        return Boolean(inPt)
     } 
     getIntersectPoint(line, segment = false){        
         if (line.getSlope() == this.slope ){
@@ -78,23 +151,11 @@ class Ray{
             return ans    
         }
         else{
-            // const xMin = Math.min(line.pointA.x, line.pointB.x)
-            // const xMax = Math.max(line.pointA.x, line.pointB.x)
-            // const yMin = Math.min(line.pointA.y, line.pointB.y)
-            // const yMax = Math.max(line.pointA.y, line.pointB.y)
-            
-            // if (ans.x >= xMin && ans.x <= xMax && ans.y >= yMin && ans.y <= yMax){
-            //     return ans
-            // }
-            // else 
-            //     return null
-            // }
-            let a = new Line(this.point, line.pointA)
-            let b = new Line(this.point, line.pointB)
-            let n = this.getAngle() - 90
-            let sign1 = Math.sign(Math.cos((a.getAngle() - n ) * Math.PI / 180))
-            let sign2 = Math.sign(Math.cos((b.getAngle() - n ) * Math.PI / 180))
-            console.log(sign1,sign2)
+            const a = new Line(this.point, line.pointA)
+            const b = new Line(this.point, line.pointB)
+            const n = this.getAngle() - 90
+            const sign1 = Math.sign(Math.cos(degreeToRadian(a.getAngle() - n )))
+            const sign2 = Math.sign(Math.cos(degreeToRadian(b.getAngle() - n )))
             if(sign1 != sign2){
                 return ans
             }
@@ -105,8 +166,32 @@ class Ray{
          } 
     }   
     getAngle(){
-        return Math.atan(this.slope) * 180/Math.PI 
+        return radianToDegree(Math.atan(this.slope))
     }
+    draw(){
+        const l = 0.001
+        new Line(this.point, new Point( this.point.x + l * Math.cos(degreeToRadian(this.getAngle())) , this.point.y + l * Math.sin(degreeToRadian(this.getAngle())))).draw('#0000FF')
+    }
+}
+function metersToLengthInPoints(meters){
+
+    const r = 6371e3
+    const d = meters
+    const x = 2 * Math.asin(Math.sin(d/(2*r)))
+
+    const  lat1 = 0
+    const  lon1 = 0
+
+    const  lat2 = 0
+    const  lon2 = radianToDegree(x)
+    
+    // console.log(x)
+
+    pt1 = map.getProjection().fromLatLngToPoint({lat: ()=>lat1, lng: ()=>lon1})
+    pt2 = map.getProjection().fromLatLngToPoint({lat: ()=>lat2, lng: ()=>lon2})
+
+    return new Line( new Point(pt1.x, pt1.y), new Point(pt2.x, pt2.y)).getLength()
+    
 }
 class Line {
     constructor(pointA, pointB) {
@@ -118,31 +203,72 @@ class Line {
         let dyAB = this.pointA.y - this.pointB.y
         return Math.sqrt(dxAB**2+dyAB**2)
     }
+    getLengthInMeters(){
+        let [ptA,ptB] = this.getLatLng()
+        const lat1 = ptA.lat()
+        const lon1 = ptA.lng()
+        const lat2 = ptB.lat()
+        const lon2 = ptB.lng()
+        const R = 6371e3 // metres
+        const φ1 = degreeToRadian( lat1 ) // φ, λ in radians
+        const φ2 = degreeToRadian( lat2 )
+        const Δφ = degreeToRadian(lat2-lat1)
+        const Δλ = degreeToRadian(lon2-lon1)
+
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+          Math.cos(φ1) * Math.cos(φ2) *
+          Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+        const d = R * c
+        return d
+        
+    }
     getAngle(){
-        return (Math.atan2(this.pointB.y - this.pointA.y, this.pointB.x - this.pointA.x))*180/Math.PI;
+        return radianToDegree(Math.atan2(this.pointB.y - this.pointA.y, this.pointB.x - this.pointA.x))
     }
 
-    getIntervalPoints(n){     
-        var dxAB = this.pointB.x - this.pointA.x
-        var dyAB = this.pointB.y - this.pointA.y
-        const strideX = dxAB/n
-        const strideY = dyAB/n
+    getIntervalPoints(n, start, gap){     
+        
         let intervalPoints = []
-        for(let i = 1; i < n-1; i++){
-            let pt = new Point(this.pointA.x + strideX*i, this.pointA.y + strideY*i)
+        
+        const startX = start * Math.cos(degreeToRadian(this.getAngle()))
+        const startY = start * Math.sin(degreeToRadian(this.getAngle()))
+
+        let st = new Point(this.pointA.x + startX, this.pointA.y + startY)
+        intervalPoints.push(st)
+        
+        const strideX = gap * Math.cos(degreeToRadian(this.getAngle()))
+        const strideY = gap * Math.sin(degreeToRadian(this.getAngle()))
+
+        for(let i = 1; i < n; i++){
+            let pt = new Point(st.x + strideX*i, st.y + strideY*i)
             intervalPoints.push(pt)
         }
         return intervalPoints
+
+        // let intervalPoints = []
+        
+        // const strideX = this.getLength() * Math.cos(degreeToRadian(this.getAngle())) / n
+        // const strideY = this.getLength() * Math.sin(degreeToRadian(this.getAngle())) / n
+    
+        // for(let i = 1; i < n; i++){
+        //     let pt = new Point(this.pointA.x + strideX*i, this.pointA.y + strideY*i)
+        //     intervalPoints.push(pt)
+        // }
+        // return intervalPoints
+
+        
     }
     getDistanceToPoint(point){
         let d = Math.abs((this.pointB.x-this.pointA.x)*(this.pointA.y - point.y) - (this.pointA.x - point.x)*(this.pointB.y - this.pointA.y))
         return d/this.getLength()
     }
-    draw(){
+    draw(myColor = '#00FF00'){
           const flightPath = new google.maps.Polyline({
             path: this.getLatLng(),
             geodesic: true,
-            strokeColor: "#00FF00",
+            strokeColor: myColor,
             strokeOpacity: 1.0,
             strokeWeight: 2,
           });
@@ -159,7 +285,7 @@ class Line {
     }
     getSlope(){
         //return (this.pointB.y - this.pointA.y)/(this.pointB.x - this.pointA.x)
-        return Math.tan(this.getAngle()*Math.PI/180)
+        return Math.tan(degreeToRadian(this.getAngle()))
     }
     getIntercept(){
         return this.pointA.y - this.getSlope()*this.pointA.x
@@ -242,11 +368,9 @@ class Line {
     getSweepLine(){
         let line = this.getLongestEdge()
         
-        let rays = this.points.map(x => new Ray(x, Math.tan((line.getAngle()+90)*Math.PI/180) ))
+        let rays = this.points.map(x => new Ray(x, Math.tan(degreeToRadian(line.getAngle()+90)) ))
         let sweeps = rays.map(x => new Line( x.getIntersectPoint(line), x.point ) )
         let maxSweep = sweeps.reduce((max, cur)=> max.getLength() > cur.getLength()? max : cur, sweeps[0])
-        // let maxPt = line.getFurthestPoint(this.points)
-        // let sweep = new Line(line.getClosestPoint(maxPt), maxPt)
         return maxSweep
     }
     getEdgeList(){
@@ -258,13 +382,14 @@ class Line {
     }
     getRayIntersectLine(ray){
         let edgeList = this.getEdgeList()
-        //let intersectEdgeList = edgeList.filter(x=>ray.doesIntersect(x))
-        let intersectingPoints = edgeList.map(x=>ray.getIntersectPoint(x,true))//true
+        let intersectingPoints = edgeList.map(x=>ray.getIntersectPoint(x,true))//true here
         let nonNull = intersectingPoints.filter(x=>Boolean(x))
-        console.log(intersectingPoints)
-        console.log(nonNull)
-        if(nonNull.length == 2){
-            return new Line( nonNull[0], nonNull[1])
+        // console.log(intersectingPoints)
+        //console.log('intersects : '+nonNull)
+        if(nonNull.length % 2 == 0 && nonNull.length >= 2){
+            let minxPt = nonNull.reduce((min, cur)=>cur.x < min.x?cur:min)
+            let maxxPt = nonNull.reduce((max, cur)=>max.x < cur.x?cur:max)
+            return new Line( minxPt, maxxPt)
         }
         else{
             console.log(`ERROR: ray intersects at ${nonNull.length} points`)
@@ -272,44 +397,63 @@ class Line {
         }
     }
 }
-// Polygon.prototype.toString = function PolyToString() {
-//     return `points are ${Array(this.points)}`;
-//   };
+Polygon.prototype.toString = function() {
+    return `polygon points ${Array(this.points)}`;
+  }
 class Rectangle extends Polygon{
-    constructor(point, width, height){
+    constructor(center, width, height, angle=0){        
         let rect = []
-        rect.push( new Point(point.x, point.y))
-        rect.push( new Point(point.x, point.y + height))
-        rect.push( new Point(point.x + width, point.y + height))
-        rect.push( new Point(point.x + width, point.y))
+        rect.push( new Point(center.x - width/2, center.y - height/2))
+        rect.push( new Point(center.x - width/2, center.y + height/2))
+        rect.push( new Point(center.x + width/2, center.y + height/2))
+        rect.push( new Point(center.x + width/2, center.y - height/2))                                
+        const origin = center
+        const angleRad = degreeToRadian(angle)
+        rect = rect.map(pt=>
+            new Point( Math.cos(angleRad) * (pt.x - origin.x) - Math.sin(angleRad) * (pt.y - origin.y) + origin.x,
+            Math.sin(angleRad) * (pt.x - origin.x) + Math.cos(angleRad) * (pt.y - origin.y) + origin.y)
+        )                
         super(rect)
+        this.center = center
+    }
+    rotate(angle) {
+        const origin = this.center
+        const angleRad = degreeToRadian(angle)
+        this.points = this.points.map(pt=>
+            new Point( Math.cos(angleRad) * (pt.x - origin.x) - Math.sin(angleRad) * (pt.y - origin.y) + origin.x,
+            Math.sin(angleRad) * (pt.x - origin.x) + Math.cos(angleRad) * (pt.y - origin.y) + origin.y)
+        )
+        return this
     }
 }
 function main(){
-    let boundingPolygon = new Polygon([
-        new Point(60, 90), 
-        new Point(50, 95), 
-        new Point(70, 95)])
-
-
-    boundingPolygon.print()
-    boundingPolygon.draw()
-
-    let line = boundingPolygon.getLongestEdge()
-    let sweep = boundingPolygon.getSweepLine()
-    sweep.print('sweep')
-    sweep.draw()
-    console.log(`sweep angle is : ${sweep.getAngle()}`)
-    console.log(`longestEdge angle is : ${line.getAngle()}`)
-    let intervals = sweep.getIntervalPoints(10)    
+    // let boundingPolygon = new Polygon([
+    //     new Point(120, 120), 
+    //     new Point(115, 125), 
+    //     new Point(125, 125)])
     
-    line.draw()
-    const raySlope = Math.tan((sweep.getAngle()+90)*Math.PI/180)
-    console.log(`ray angle is : ${Math.atan(raySlope)*180/Math.PI}`)
-    let rays = intervals.map(x=>new Ray(x, raySlope))
-    console.log(rays)
-    let rayLines = rays.map(x=>boundingPolygon.getRayIntersectLine(x))
-    console.log(rayLines)
-    rayLines.forEach(x=>x.draw())
+    // boundingPolygon.draw()
+    // new Ray(new Point(60,92),0).draw()
+    // let drone = new Drone(boundingPolygon, new Camera(78.8,4/3), 50000)
+    // drone.pathPlan()
+
+    // let line = boundingPolygon.getLongestEdge()
+    // let sweep = boundingPolygon.getSweepLine()
+    // sweep.draw()
+    // let intervals = sweep.getIntervalPoints(10)    
     
+    // line.draw()
+    // const raySlope = Math.tan(degreeToRadian(sweep.getAngle()+90))
+    // let rays = intervals.map(x=>new Ray(x, raySlope))
+    // let rayLines = rays.map(x=>boundingPolygon.getRayIntersectLine(x))
+    // rayLines.forEach(x=>x.draw())
+    
+    // new Rectangle(new Point(0,0), 200,100).draw()
+    // const X = 10
+    // const Y = 10
+    // let rect = new Rectangle(new Point(256/4*3,256/4*3),256/2,256/2)
+    // rect.draw()
+    
+    
+
 }
