@@ -36,7 +36,7 @@ class Drone{
     }
     pathPlan(){
         let sweep = this.area.getSweepLine()  
-        sweep.draw()  
+        //sweep.draw()  
         console.log(sweep.getAngle())    
         let sweepLength = sweep.getLengthInMeters()
         let cameraWidth = this.camera.getFootPrintWidth(this.height)
@@ -46,7 +46,7 @@ class Drone{
             stripeCount++
         }
         const stripeGap = (sweepLength - cameraWidth )/ (stripeCount - 1)
-        let intervals = sweep.getIntervalPoints(stripeCount, metersToLengthInPoints(cameraWidth/2), metersToLengthInPoints(stripeGap)) 
+        let intervals = sweep.getIntervalPoints(stripeCount, cameraWidth/2, stripeGap) 
 
         const raySlope = Math.tan(degreeToRadian(sweep.getAngle()+90))
         let rays = intervals.map(x=>new Ray(x, raySlope))
@@ -57,7 +57,7 @@ class Drone{
             const plowLength = x.getLengthInMeters()
             const plowCount = Math.ceil(plowLength/cameraHeight)
             const plowGap = (plowLength - cameraHeight) / (plowCount - 1)
-            return x.getIntervalPoints(plowCount,metersToLengthInPoints(cameraHeight/2), metersToLengthInPoints(plowGap))
+            return x.getIntervalPoints(plowCount,cameraHeight/2, plowGap)
         })
         let joinPicturePoints = []
         picturePoints.forEach((element,i) => {
@@ -69,10 +69,9 @@ class Drone{
         let path = new Path(joinPicturePoints)
         path.draw()
         //new Rectangle(path.points[0], metersToLengthInPoints(cameraWidth), metersToLengthInPoints(cameraHeight), sweep.getAngle()).draw()
-        path.points.forEach(x=> new Rectangle(x, metersToLengthInPoints(cameraWidth), metersToLengthInPoints(cameraHeight), sweep.getAngle()).draw())
+        path.points.forEach(x=> new Rectangle(x, metersToLengthInPoints2(cameraWidth,x,90+sweep.getAngle()), metersToLengthInPoints2(cameraHeight,x,sweep.getAngle()), sweep.getAngle()).draw())
     }
 }
-
 class Path{
     constructor(points){
         this.points = points
@@ -105,6 +104,9 @@ class Point{
     }
     print(name = ''){
         console.log(`point ${name}: (${this.x}, ${this.y})`)
+    }
+    getLatLng(){
+        return map.getProjection().fromPointToLatLng(this)
     }
     isOn(line){
         if((this.x == line.pointA.x && this.y == line.pointA.y) || (this.x == line.pointB.x && this.y == line.pointB.y)){
@@ -175,6 +177,7 @@ class Ray{
 }
 function metersToLengthInPoints(meters){
 
+
     const r = 6371e3
     const d = meters
     const x = 2 * Math.asin(Math.sin(d/(2*r)))
@@ -193,6 +196,26 @@ function metersToLengthInPoints(meters){
     return new Line( new Point(pt1.x, pt1.y), new Point(pt2.x, pt2.y)).getLength()
     
 }
+
+function metersToLengthInPoints2(meters,point, angle = 0){
+
+    const latitude = point.getLatLng().lat()
+    const longitude = point.getLatLng().lng()
+
+    const r = 6371e3
+
+    const dy = meters * Math.cos(degreeToRadian(angle))
+    const dx = meters * Math.sin(degreeToRadian(angle))
+    const new_latitude  = latitude  +  radianToDegree(dy / r);
+    const new_longitude = longitude + radianToDegree(dx / r) / Math.cos( degreeToRadian( latitude))
+
+    pt1 = map.getProjection().fromLatLngToPoint(point.getLatLng())
+    pt2 = map.getProjection().fromLatLngToPoint({lat: ()=>new_latitude, lng: ()=>new_longitude})
+
+    return new Line( new Point(pt1.x, pt1.y), new Point(pt2.x, pt2.y)).getLength()
+    
+}
+
 class Line {
     constructor(pointA, pointB) {
       this.pointA = pointA;
@@ -232,14 +255,16 @@ class Line {
         
         let intervalPoints = []
         
-        const startX = start * Math.cos(degreeToRadian(this.getAngle()))
-        const startY = start * Math.sin(degreeToRadian(this.getAngle()))
+        const pTstart = metersToLengthInPoints2(start, this.pointA, this.getAngle())
+        const startX = pTstart * Math.cos(degreeToRadian(this.getAngle()))
+        const startY = pTstart * Math.sin(degreeToRadian(this.getAngle()))
 
         let st = new Point(this.pointA.x + startX, this.pointA.y + startY)
         intervalPoints.push(st)
         
-        const strideX = gap * Math.cos(degreeToRadian(this.getAngle()))
-        const strideY = gap * Math.sin(degreeToRadian(this.getAngle()))
+        const pTgap = metersToLengthInPoints2(gap, st, this.getAngle())
+        const strideX = pTgap * Math.cos(degreeToRadian(this.getAngle()))
+        const strideY = pTgap * Math.sin(degreeToRadian(this.getAngle()))
 
         for(let i = 1; i < n; i++){
             let pt = new Point(st.x + strideX*i, st.y + strideY*i)
@@ -453,7 +478,8 @@ function main(){
     // const Y = 10
     // let rect = new Rectangle(new Point(256/4*3,256/4*3),256/2,256/2)
     // rect.draw()
-    
-    
+    let ln = metersToLengthInPoints2(10,new Point(60,90), 90)   
+    let li = new Line(new Point(60,90), new Point(60,90+ln))
+    console.log(li.getLengthInMeters())
 
 }
