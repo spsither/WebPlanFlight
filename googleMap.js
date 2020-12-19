@@ -3,14 +3,14 @@ var selectedShape;
 var map;
 function initialize() {
     map = new google.maps.Map(document.getElementById('map'), {
-        zoom: 10,
+        zoom: 13,
         center: {
-            lat: 41.879,
-            lng: -87.624
+            lat: 38.85294696761574,
+            lng:  -92.43570288165924 
         }, // Center the map on Chicago, USA.
         mapTypeId: 'satellite' //hybrid //terrain//satellite
     });
-    // User CurrentPosition to center map
+    //User CurrentPosition to center map
     //   if (navigator.geolocation) {
     //      navigator.geolocation.getCurrentPosition(function (position) {
     //          initialLocation = new google.maps.LatLng(position.coords.latitude, position.coords.longitude);
@@ -71,9 +71,11 @@ function initialize() {
             }
             infoWindow = new google.maps.InfoWindow();
             let contentString =
-                "<b>Selected polygon</b><br>" +
-                "<button type=\"button\" onclick=\"generatePath()\">Generate Path</button>"
-            
+                "<b>Selected polygon</b><br>" +                
+                "<label>Drone flight height(m):</label>"+
+                "<input type='number' id='flightHeight' value='60' ><br>"+
+                "<button type=\"button\" onclick=\"generatePath()\">GO</button>"
+
             // set the info window's content and position.
             infoWindow.setContent(contentString);
             infoWindow.setPosition(event.latLng);

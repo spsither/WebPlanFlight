@@ -3,10 +3,8 @@ function generatePath() {
     const latLngs = selectedShape.getPath()
     let boundingPolygon = new Polygon().setPointsFromLatLng(latLngs)
     boundingPolygon.print('Selected Ares')
-    //boundingPolygon.getLongestEdge().print('longest edge of bounding polygon')
-    // const height = prompt(`Enter Drone Flight height:`)
-    // console.log(height)
-    let drone = new Drone(boundingPolygon, new Camera(78.8,4/3), 60)
+    const flightHeight = Number(document.getElementById('flightHeight').value)
+    let drone = new Drone(boundingPolygon, new Camera(78.8,4/3), flightHeight) // 78.8
     drone.pathPlan()
 }
 
@@ -72,7 +70,7 @@ class Drone{
         path.points.forEach(x=> 
             new Rectangle(x, x.getProjectDistance(cameraWidth,90+sweep.getAngle()), x.getProjectDistance(cameraHeight,sweep.getAngle()), sweep.getAngle()).draw()
             )
-        path.writeFile()
+        path.addDownloadBtn()
     }
 }
 class Path{
@@ -98,18 +96,24 @@ class Path{
         }
         return latLngs
     }
-    writeFile(filename='path.csv'){
-        let csvContent = "data:text/csv;charset=utf-8,latitude,longitude\n" 
-        + this.points.map( e => `${e.getLatLng().lat()},${e.getLatLng().lng()}`).join('\n')
+    addDownloadBtn(filename='path.csv'){
+        let csvBtn = document.createElement("button")
+        csvBtn.innerHTML = 'Download Path'
+        document.body.appendChild(csvBtn)
+        csvBtn.onclick = ()=>{
+            let csvContent = "data:text/csv;charset=utf-8,latitude,longitude\n" 
+            + this.points.map( e => `${e.getLatLng().lat()},${e.getLatLng().lng()}`).join('\n')
         
-        var encodedUri = encodeURI(csvContent);
-        var link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", filename);
-        document.body.appendChild(link); // Required for FF
-
-        link.click();
+            var encodedUri = encodeURI(csvContent);
+            var link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", filename);
+            document.body.appendChild(link) // Required for FF        
+            link.click()
+        }
+        
     }
+
 }
 class Point{
     constructor(x,y){
