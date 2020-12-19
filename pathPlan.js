@@ -5,15 +5,35 @@ function generatePath() {
     boundingPolygon.print('Selected Ares')
     const flightHeight = Number(document.getElementById('flightHeight').value)
     let drone = new Drone(boundingPolygon, new Camera(78.8,4/3), flightHeight) // 78.8
-    drone.pathPlan()
+    // path.points.push(path.points[0])
+    drone.drawPath()
+    drone.drawPictures()
+    //new Rectangle(path.points[0], metersToLengthInPoints(cameraWidth), metersToLengthInPoints(cameraHeight), sweep.getAngle()).draw()    
+    //drone.path.addDownloadBtn()
+
+    const filename='path.csv'
+    let csvBtn = document.createElement("button")
+    csvBtn.innerHTML = 'Download Path'
+    document.body.appendChild(csvBtn)
+    csvBtn.onclick = ()=>{
+    let csvContent = "data:text/csv;charset=utf-8," 
+    + drone.path.getPathInCSV()
+
+    var encodedUri = encodeURI(csvContent);
+    var link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link) // Required for FF        
+    link.click()
+    }
+    const totalPathLength = drone.path.getTotalLengthInMeters()
+    
+    let info = document.createElement('b')
+    info.innerHTML = ` Total flight length: ${totalPathLength.toFixed(2)} m`
+                    +` Number of turns: ${drone.turnCount}`
+    document.body.appendChild(info)
 }
 
-function degreeToRadian(x){
-    return x * Math.PI / 180
-}  
-function radianToDegree(x){
-    return x * 180 / Math.PI 
-}  
 class Camera{
     constructor(angleOfView, aspectRatio){
         this.angleOfView = angleOfView
@@ -31,6 +51,18 @@ class Drone{
         this.area = area
         this.camera = camera
         this.height = height
+        this.path = this.pathPlan()        
+    }
+    drawPath(){
+        this.path.draw()
+    }
+    drawPictures(){
+        const cameraWidth = this.camera.getFootPrintWidth(this.height)
+        const cameraHeight = this.camera.getFootPrintHeight(this.height)
+        const sweep = this.area.getSweepLine()  
+        this.path.points.forEach(x=> 
+            new Rectangle(x, x.getProjectDistance(cameraWidth,90+sweep.getAngle()), x.getProjectDistance(cameraHeight,sweep.getAngle()), sweep.getAngle()).draw()
+            )
     }
     pathPlan(){
         let sweep = this.area.getSweepLine()  
@@ -64,20 +96,8 @@ class Drone{
             joinPicturePoints = joinPicturePoints.concat(element)
         });   
         console.log(`Number of way points: ${joinPicturePoints.length}`)
-        let path = new Path(joinPicturePoints)
-        // path.points.push(path.points[0])
-         path.draw()
-        //new Rectangle(path.points[0], metersToLengthInPoints(cameraWidth), metersToLengthInPoints(cameraHeight), sweep.getAngle()).draw()
-        path.points.forEach(x=> 
-            new Rectangle(x, x.getProjectDistance(cameraWidth,90+sweep.getAngle()), x.getProjectDistance(cameraHeight,sweep.getAngle()), sweep.getAngle()).draw()
-            )
-        path.addDownloadBtn()
-        const totalPathLength = path.getTotalLengthInMeters()
-        
-        let info = document.createElement('b')
-        info.innerHTML = ` Total flight length: ${totalPathLength}`+
-                        ` Total number of turns: ${picturePoints.length*2-2}`
-        document.body.appendChild(info)
+        this.turnCount = picturePoints.length*2-2
+        return new Path(joinPicturePoints)
     }
 }
 class Path{
@@ -103,23 +123,11 @@ class Path{
         }
         return latLngs
     }
-    addDownloadBtn(filename='path.csv'){
-        let csvBtn = document.createElement("button")
-        csvBtn.innerHTML = 'Download Path'
-        document.body.appendChild(csvBtn)
-        csvBtn.onclick = ()=>{
-            let csvContent = "data:text/csv;charset=utf-8,latitude,longitude\n" 
+    getPathInCSV(){
+        let csvContent = "latitude,longitude\n" 
             + this.points.map( e => `${e.getLatLng().lat()},${e.getLatLng().lng()}`).join('\n')
-        
-            var encodedUri = encodeURI(csvContent);
-            var link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", filename);
-            document.body.appendChild(link) // Required for FF        
-            link.click()
+        return csvContent
         }
-        
-    }
     getTotalLengthInMeters(){
         let total = 0
         for(let i=1;i<this.points.length;i++){
@@ -460,7 +468,13 @@ class Rectangle extends Polygon{
         return this
     }
 }
-function main(){
+function degreeToRadian(x){
+    return x * Math.PI / 180
+}  
+function radianToDegree(x){
+    return x * 180 / Math.PI 
+}  
+// function main(){
     // let boundingPolygon = new Polygon([
     //     new Point(120, 120), 
     //     new Point(115, 125), 
@@ -487,4 +501,4 @@ function main(){
     // const Y = 10
     // let rect = new Rectangle(new Point(256/4*3,256/4*3),256/2,256/2)
     // rect.draw()
-}
+// }
