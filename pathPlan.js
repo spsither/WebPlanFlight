@@ -72,6 +72,7 @@ class Drone{
         path.points.forEach(x=> 
             new Rectangle(x, x.getProjectDistance(cameraWidth,90+sweep.getAngle()), x.getProjectDistance(cameraHeight,sweep.getAngle()), sweep.getAngle()).draw()
             )
+        path.writeFile()
     }
 }
 class Path{
@@ -98,9 +99,16 @@ class Path{
         return latLngs
     }
     writeFile(filename='path.csv'){
-        for(let pt of this.points){
+        let csvContent = "data:text/csv;charset=utf-8,latitude,longitude\n" 
+        + this.points.map( e => `${e.getLatLng().lat()},${e.getLatLng().lng()}`).join('\n')
+        
+        var encodedUri = encodeURI(csvContent);
+        var link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", filename);
+        document.body.appendChild(link); // Required for FF
 
-        }
+        link.click();
     }
 }
 class Point{
