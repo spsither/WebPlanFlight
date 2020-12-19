@@ -2,8 +2,8 @@ function generatePath() {
     
     const latLngs = selectedShape.getPath()
     let boundingPolygon = new Polygon().setPointsFromLatLng(latLngs)
-    boundingPolygon.print('bounding polygon')
-    boundingPolygon.getLongestEdge().print('longest edge of bounding polygon')
+    boundingPolygon.print('Selected Ares')
+    //boundingPolygon.getLongestEdge().print('longest edge of bounding polygon')
     // const height = prompt(`Enter Drone Flight height:`)
     // console.log(height)
     let drone = new Drone(boundingPolygon, new Camera(78.8,4/3), 60)
@@ -37,7 +37,7 @@ class Drone{
     pathPlan(){
         let sweep = this.area.getSweepLine()  
         //sweep.draw()  
-        console.log(sweep.getAngle())    
+        //console.log(sweep.getAngle())    
         let sweepLength = sweep.getLengthInMeters()
         let cameraWidth = this.camera.getFootPrintWidth(this.height)
         let cameraHeight = this.camera.getFootPrintHeight(this.height)
@@ -65,11 +65,13 @@ class Drone{
                 element.reverse()
             joinPicturePoints = joinPicturePoints.concat(element)
         });   
-        console.log('picturePoints '+ joinPicturePoints.length)     
+        console.log(`Number of way points: ${joinPicturePoints.length}`)
         let path = new Path(joinPicturePoints)
         path.draw()
         //new Rectangle(path.points[0], metersToLengthInPoints(cameraWidth), metersToLengthInPoints(cameraHeight), sweep.getAngle()).draw()
-        path.points.forEach(x=> new Rectangle(x, metersToLengthInPoints2(cameraWidth,x,90+sweep.getAngle()), metersToLengthInPoints2(cameraHeight,x,sweep.getAngle()), sweep.getAngle()).draw())
+        path.points.forEach(x=> 
+            new Rectangle(x, x.getProjectDistance(cameraWidth,90+sweep.getAngle()), x.getProjectDistance(cameraHeight,sweep.getAngle()), sweep.getAngle()).draw()
+            )
     }
 }
 class Path{
@@ -95,7 +97,11 @@ class Path{
         }
         return latLngs
     }
+    writeFile(filename='path.csv'){
+        for(let pt of this.points){
 
+        }
+    }
 }
 class Point{
     constructor(x,y){
@@ -107,6 +113,24 @@ class Point{
     }
     getLatLng(){
         return map.getProjection().fromPointToLatLng(this)
+    }
+    getProjectDistance(meters, angle = 0){
+
+        const latitude = this.getLatLng().lat()
+        const longitude = this.getLatLng().lng()
+    
+        const r = 6371e3
+    
+        const dy = meters * Math.cos(degreeToRadian(angle))
+        const dx = meters * Math.sin(degreeToRadian(angle))
+        const new_latitude  = latitude  +  radianToDegree(dy / r);
+        const new_longitude = longitude + radianToDegree(dx / r) / Math.cos( degreeToRadian( latitude))
+    
+        const pt1 = map.getProjection().fromLatLngToPoint(this.getLatLng())
+        const pt2 = map.getProjection().fromLatLngToPoint({lat: ()=>new_latitude, lng: ()=>new_longitude})
+    
+        return new Line( new Point(pt1.x, pt1.y), new Point(pt2.x, pt2.y)).getLength()
+        
     }
     isOn(line){
         if((this.x == line.pointA.x && this.y == line.pointA.y) || (this.x == line.pointB.x && this.y == line.pointB.y)){
@@ -175,47 +199,6 @@ class Ray{
         new Line(this.point, new Point( this.point.x + l * Math.cos(degreeToRadian(this.getAngle())) , this.point.y + l * Math.sin(degreeToRadian(this.getAngle())))).draw('#0000FF')
     }
 }
-function metersToLengthInPoints(meters){
-
-
-    const r = 6371e3
-    const d = meters
-    const x = 2 * Math.asin(Math.sin(d/(2*r)))
-
-    const  lat1 = 0
-    const  lon1 = 0
-
-    const  lat2 = 0
-    const  lon2 = radianToDegree(x)
-    
-    // console.log(x)
-
-    pt1 = map.getProjection().fromLatLngToPoint({lat: ()=>lat1, lng: ()=>lon1})
-    pt2 = map.getProjection().fromLatLngToPoint({lat: ()=>lat2, lng: ()=>lon2})
-
-    return new Line( new Point(pt1.x, pt1.y), new Point(pt2.x, pt2.y)).getLength()
-    
-}
-
-function metersToLengthInPoints2(meters,point, angle = 0){
-
-    const latitude = point.getLatLng().lat()
-    const longitude = point.getLatLng().lng()
-
-    const r = 6371e3
-
-    const dy = meters * Math.cos(degreeToRadian(angle))
-    const dx = meters * Math.sin(degreeToRadian(angle))
-    const new_latitude  = latitude  +  radianToDegree(dy / r);
-    const new_longitude = longitude + radianToDegree(dx / r) / Math.cos( degreeToRadian( latitude))
-
-    pt1 = map.getProjection().fromLatLngToPoint(point.getLatLng())
-    pt2 = map.getProjection().fromLatLngToPoint({lat: ()=>new_latitude, lng: ()=>new_longitude})
-
-    return new Line( new Point(pt1.x, pt1.y), new Point(pt2.x, pt2.y)).getLength()
-    
-}
-
 class Line {
     constructor(pointA, pointB) {
       this.pointA = pointA;
@@ -255,14 +238,14 @@ class Line {
         
         let intervalPoints = []
         
-        const pTstart = metersToLengthInPoints2(start, this.pointA, this.getAngle())
+        const pTstart = this.pointA.getProjectDistance(start, this.getAngle())
         const startX = pTstart * Math.cos(degreeToRadian(this.getAngle()))
         const startY = pTstart * Math.sin(degreeToRadian(this.getAngle()))
 
         let st = new Point(this.pointA.x + startX, this.pointA.y + startY)
         intervalPoints.push(st)
         
-        const pTgap = metersToLengthInPoints2(gap, st, this.getAngle())
+        const pTgap = st.getProjectDistance(gap, this.getAngle())
         const strideX = pTgap * Math.cos(degreeToRadian(this.getAngle()))
         const strideY = pTgap * Math.sin(degreeToRadian(this.getAngle()))
 
@@ -384,7 +367,7 @@ class Line {
     }
 
     print(name =''){
-        console.log(`polygon ${name}, len: ${this.points.length}`)
+        console.log(`${name} polygon with ${this.points.length} sides`)
         for(let pt of this.points){
             pt.print()
         }
@@ -478,8 +461,4 @@ function main(){
     // const Y = 10
     // let rect = new Rectangle(new Point(256/4*3,256/4*3),256/2,256/2)
     // rect.draw()
-    let ln = metersToLengthInPoints2(10,new Point(60,90), 90)   
-    let li = new Line(new Point(60,90), new Point(60,90+ln))
-    console.log(li.getLengthInMeters())
-
 }
