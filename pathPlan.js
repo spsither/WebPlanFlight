@@ -65,12 +65,19 @@ class Drone{
         });   
         console.log(`Number of way points: ${joinPicturePoints.length}`)
         let path = new Path(joinPicturePoints)
-        path.draw()
+        // path.points.push(path.points[0])
+         path.draw()
         //new Rectangle(path.points[0], metersToLengthInPoints(cameraWidth), metersToLengthInPoints(cameraHeight), sweep.getAngle()).draw()
         path.points.forEach(x=> 
             new Rectangle(x, x.getProjectDistance(cameraWidth,90+sweep.getAngle()), x.getProjectDistance(cameraHeight,sweep.getAngle()), sweep.getAngle()).draw()
             )
         path.addDownloadBtn()
+        const totalPathLength = path.getTotalLengthInMeters()
+        
+        let info = document.createElement('b')
+        info.innerHTML = ` Total flight length: ${totalPathLength}`+
+                        ` Total number of turns: ${picturePoints.length*2-2}`
+        document.body.appendChild(info)
     }
 }
 class Path{
@@ -112,6 +119,13 @@ class Path{
             link.click()
         }
         
+    }
+    getTotalLengthInMeters(){
+        let total = 0
+        for(let i=1;i<this.points.length;i++){
+            total += new Line(this.points[i-1], this.points[i]).getLengthInMeters()
+        }
+        return total
     }
 
 }
